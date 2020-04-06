@@ -1,0 +1,11 @@
+[package]
+name = "rdisk_shared"
+version = "0.1.0"
+authors = ["Vitalij Shitts <vit@conrlab.com>"]
+edition = "2018"
+
+[dependencies]
+
+[features]
+default = ["std"]
+std = []
