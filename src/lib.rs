@@ -51,63 +51,71 @@ impl NullSafePtr<u8> for str {
     }
 }
 
-/// A type is Byteable if it might be represented as a byte sequence.
-/// 
-/// Any struct that implements Byteable automatically gets AsByteSlice and AsByteSliceMut traits implementations.
-/// 
-/// # Safety
-/// The trait is unsafe because any padding bytes in the struct may be uninitialized memory (giving undefined behavior).
-/// Also, there are not any Endianness assumtions. The caller should care about it.
-pub unsafe trait Byteable : Sized {}
-
-unsafe impl Byteable for u8 {}
-unsafe impl Byteable for u16 {}
-unsafe impl Byteable for u32 {}
-unsafe impl Byteable for u64 {}
-unsafe impl Byteable for i8 {}
-unsafe impl Byteable for i16 {}
-unsafe impl Byteable for i32 {}
-unsafe impl Byteable for i64 {}
-
-/// Companion trait for Byteable.
 pub unsafe trait AsByteSlice {
     /// # Safety
-    /// There are not any Endianness assumtions!
+    /// The method is unsafe because any padding bytes in the struct may be uninitialized memory (giving undefined behavior).
+    /// Also, there are not any Endianness assumtions. The caller should care about it.
     unsafe fn as_byte_slice(&self) -> &[u8];
 }
 
-/// Companion trait for Byteable.
 pub unsafe trait AsByteSliceMut {
     /// # Safety
-    /// There are not any Endianness assumtions!
+    /// The method is unsafe because any padding bytes in the struct may be uninitialized memory (giving undefined behavior).
+    /// Also, there are not any Endianness assumtions. The caller should care about it.
     unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8];
 }
 
-unsafe impl<T: Byteable> AsByteSlice for T {
-    unsafe fn as_byte_slice(&self) -> &[u8] {
-        core::slice::from_raw_parts((self as *const T) as *const u8, core::mem::size_of::<T>())
-    }
+#[macro_export]
+macro_rules! struct_as_byte_slice {
+    ($name:ty) => {
+        unsafe impl AsByteSlice for $name {
+            unsafe fn as_byte_slice(&self) -> &[u8] {
+                core::slice::from_raw_parts((self as *const $name) as *const u8, core::mem::size_of::<$name>())
+            }
+        }
+    };
 }
 
-unsafe impl<T: Byteable> AsByteSliceMut for T {
-    unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
-        core::slice::from_raw_parts_mut((self as *mut T) as *mut u8, core::mem::size_of::<T>())
-    }
+#[macro_export]
+macro_rules! struct_as_byte_slice_mut {
+    ($name:ty) => {
+        unsafe impl AsByteSliceMut for $name {
+            unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+                core::slice::from_raw_parts_mut((self as *mut $name) as *mut u8, core::mem::size_of::<$name>())
+            }
+        }
+    };
 }
 
-unsafe impl<T: Byteable> AsByteSlice for &[T] {
-    unsafe fn as_byte_slice(&self) -> &[u8] {
-        let byte_size = self.len() * core::mem::size_of::<T>();
-        core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
-    }
+macro_rules! struct_as_byte_for_prim_int {
+    ($name:ty) => {
+        $crate::struct_as_byte_slice!($name);
+        $crate::struct_as_byte_slice!($name);
+
+        unsafe impl AsByteSlice for &[$name] {
+            unsafe fn as_byte_slice(&self) -> &[u8] {
+                let byte_size = self.len() * core::mem::size_of::<$name>();
+                core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
+            }
+        }
+        
+        unsafe impl AsByteSlice for Vec<$name> {
+            unsafe fn as_byte_slice(&self) -> &[u8] {
+                let byte_size = self.len() * core::mem::size_of::<$name>();
+                core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
+            }
+        }
+    };
 }
 
-unsafe impl<T: Byteable> AsByteSlice for Vec<T> {
-    unsafe fn as_byte_slice(&self) -> &[u8] {
-        let byte_size = self.len() * core::mem::size_of::<T>();
-        core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
-    }
-}
+struct_as_byte_for_prim_int!(u8);
+struct_as_byte_for_prim_int!(u16);
+struct_as_byte_for_prim_int!(u32);
+struct_as_byte_for_prim_int!(u64);
+struct_as_byte_for_prim_int!(i8);
+struct_as_byte_for_prim_int!(i16);
+struct_as_byte_for_prim_int!(i32);
+struct_as_byte_for_prim_int!(i64);
 
 #[allow(dead_code)]
 /// # Safety
@@ -163,8 +171,7 @@ mod tests {
             byte: u8,
             word: u16
         };
-
-        unsafe impl Byteable for S{};
+        struct_as_byte_slice!(S);
 
         let s = S{byte:1, word: 3};
 
