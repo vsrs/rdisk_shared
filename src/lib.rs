@@ -90,7 +90,7 @@ macro_rules! struct_as_byte_slice_mut {
 macro_rules! struct_as_byte_for_prim_int {
     ($name:ty) => {
         $crate::struct_as_byte_slice!($name);
-        $crate::struct_as_byte_slice!($name);
+        $crate::struct_as_byte_slice_mut!($name);
 
         unsafe impl AsByteSlice for &[$name] {
             unsafe fn as_byte_slice(&self) -> &[u8] {
