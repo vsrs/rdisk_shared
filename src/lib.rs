@@ -8,6 +8,7 @@ extern crate alloc as std;
 pub use std::collections::BTreeMap;
 pub use std::string::String;
 pub use std::vec::Vec;
+pub use std::boxed::Box;
 pub use std::format;
 
 pub use core::option::Option;
