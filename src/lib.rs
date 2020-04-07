@@ -125,7 +125,8 @@ pub struct StructBuffer<T: Sized> {
     _marker: core::marker::PhantomData<T>
 }
 
-impl<T:Sized> StructBuffer<T> {
+#[allow(clippy::len_without_is_empty)]
+impl<T: Sized + Clone + Copy> StructBuffer<T> {
     /// Creates a buffer capable to hold the value of type `T`.
     /// 
     /// # Safety
@@ -141,9 +142,24 @@ impl<T:Sized> StructBuffer<T> {
     /// 
     /// # Safety
     /// The buffer is uninitialized! 
-    pub unsafe fn with_buffer(ext_size: usize) -> Self {
+    pub unsafe fn with_ext(ext_size: usize) -> Self {
         Self{
             buffer: alloc_buffer(core::mem::size_of::<T>() + ext_size),
+            _marker: Default::default()
+        }
+    }
+
+    /// Creates a StructBuffer for the type `T` using supplied `buffer`.
+    /// 
+    /// # Safety
+    /// The buffer size should be >= mem::size_of::<T>() ! 
+    pub unsafe fn with_buffer(buffer: Vec<u8>) -> Self {
+        if buffer.len() < core::mem::size_of::<T>() {
+            panic!("Insufficient buffer size!")
+        }
+
+        Self{
+            buffer,
             _marker: Default::default()
         }
     }
@@ -161,15 +177,41 @@ impl<T:Sized> StructBuffer<T> {
     }
 
     pub fn raw(&self) -> &T {
+        #[allow(clippy::cast_ptr_alignment)]
         unsafe { &*(self.buffer.as_ptr() as *const T) }
     }
 
     pub fn raw_mut(&mut self) -> &mut T {
+        #[allow(clippy::cast_ptr_alignment)]
         unsafe { &mut *(self.buffer.as_mut_ptr() as *mut T) }
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        &self.buffer
+    }
+
+    pub fn ext_buffer(&self) -> &[u8] {
+        &self.buffer[core::mem::size_of::<T>()..]
+    }
+
+    pub fn ext_buffer_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer[core::mem::size_of::<T>()..]
+    }
+
+    pub fn has_ext_buffer(&self) -> bool {
+        !self.ext_buffer().is_empty()
+    }
+
+    pub fn copy(&self) -> T {
+        *self.raw()
+    }
+
+    pub fn take(self) -> T {
+        *self.raw()
     }
 }
 
-impl<T:Sized> core::ops::Deref for StructBuffer<T> {
+impl<T:Sized + Clone + Copy> core::ops::Deref for StructBuffer<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -177,19 +219,19 @@ impl<T:Sized> core::ops::Deref for StructBuffer<T> {
     }
 }
 
-impl<T:Sized> core::ops::DerefMut for StructBuffer<T> {
+impl<T:Sized + Clone + Copy> core::ops::DerefMut for StructBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.raw_mut()
     }
 }
 
-impl<T:Sized> AsByteSlice for StructBuffer<T> {
+impl<T:Sized + Clone + Copy> AsByteSlice for StructBuffer<T> {
     unsafe fn as_byte_slice(&self) -> &[u8] {
         self.buffer.as_byte_slice()
     }
 }
 
-impl<T:Sized> AsByteSliceMut for StructBuffer<T> {
+impl<T:Sized + Clone + Copy> AsByteSliceMut for StructBuffer<T> {
     unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
         self.buffer.as_byte_slice_mut()
     }
@@ -206,6 +248,13 @@ pub unsafe fn alloc_buffer(size: usize) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[repr(C, packed)]
+    #[derive(Copy, Clone)]
+    struct S {
+        byte: u8,
+        word: u16
+    }
 
     #[test]
     fn as_byte_slice_for_vec() {
@@ -242,15 +291,9 @@ mod tests {
 
     #[test]
     fn as_byte_slice_for_struct() {
-
-        #[repr(C, packed)]
-        struct S {
-            byte: u8,
-            word: u16
-        };
         let mut buffer = StructBuffer::<S>::zeroed();
         assert_eq!(3, buffer.len());
-        
+
         unsafe {
             // packed fileds
             assert_eq!(0, buffer.byte);
@@ -265,6 +308,18 @@ mod tests {
 
         let bytes = unsafe { buffer.as_byte_slice() };
         assert_eq!(3, bytes.len());
+
+        let s = buffer.copy();
+        unsafe {
+            assert_eq!(12, s.byte);
+            assert_eq!(0, s.word )
+        }
+
+        let s = buffer.take();
+        unsafe {
+            assert_eq!(12, s.byte);
+            assert_eq!(0, s.word )
+        }
     }
 
     #[test]
@@ -284,5 +339,20 @@ mod tests {
         let b = 4_u64;
         let bytes = unsafe { b.as_byte_slice() };
         assert_eq!(8, bytes.len());
+    }
+
+    #[test]
+    fn ext_buffer() {
+        let mut buffer = unsafe { StructBuffer::<S>::with_ext(4) };
+        assert_eq!(7, buffer.len());
+        assert!(buffer.has_ext_buffer());
+        assert!(buffer.ext_buffer().len() == 4);
+        assert!(buffer.ext_buffer_mut().len() == 4);
+
+        let mut buffer = StructBuffer::<S>::zeroed();
+        assert_eq!(3, buffer.len());
+        assert!(!buffer.has_ext_buffer());
+        assert!(buffer.ext_buffer().len() == 0);
+        assert!(buffer.ext_buffer_mut().len() == 0);
     }
 }
