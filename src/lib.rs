@@ -10,6 +10,7 @@ pub use std::string::String;
 pub use std::vec::Vec;
 pub use std::boxed::Box;
 pub use std::format;
+pub use std::string::ToString;
 
 pub use core::option::Option;
 
