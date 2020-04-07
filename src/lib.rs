@@ -80,7 +80,7 @@ macro_rules! impl_int {
                 core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
             }
         }
-        
+
         impl AsByteSlice for Vec<$name> {
             unsafe fn as_byte_slice(&self) -> &[u8] {
                 let byte_size = self.len() * core::mem::size_of::<$name>();
@@ -101,7 +101,7 @@ macro_rules! impl_int {
                 core::slice::from_raw_parts_mut(self.as_mut_ptr() as *mut u8, byte_size)
             }
         }
-        
+
         impl AsByteSliceMut for Vec<$name> {
             unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
                 let byte_size = self.len() * core::mem::size_of::<$name>();
@@ -122,53 +122,53 @@ impl_int!(i64);
 
 pub struct StructBuffer<T: Sized> {
     buffer: Vec<u8>,
-    _marker: core::marker::PhantomData<T>
+    _marker: core::marker::PhantomData<T>,
 }
 
 #[allow(clippy::len_without_is_empty)]
 impl<T: Sized + Clone + Copy> StructBuffer<T> {
     /// Creates a buffer capable to hold the value of type `T`.
-    /// 
+    ///
     /// # Safety
-    /// The buffer is uninitialized! 
+    /// The buffer is uninitialized!
     pub unsafe fn new() -> Self {
-        Self{
+        Self {
             buffer: alloc_buffer(core::mem::size_of::<T>()),
-            _marker: Default::default()
+            _marker: Default::default(),
         }
     }
 
     /// Creates a buffer capable to hold the value of type `T` plus `ext_size` bytes.
-    /// 
+    ///
     /// # Safety
-    /// The buffer is uninitialized! 
+    /// The buffer is uninitialized!
     pub unsafe fn with_ext(ext_size: usize) -> Self {
-        Self{
+        Self {
             buffer: alloc_buffer(core::mem::size_of::<T>() + ext_size),
-            _marker: Default::default()
+            _marker: Default::default(),
         }
     }
 
     /// Creates a StructBuffer for the type `T` using supplied `buffer`.
-    /// 
+    ///
     /// # Safety
-    /// The buffer size should be >= mem::size_of::<T>() ! 
+    /// The buffer size should be >= mem::size_of::<T>() !
     pub unsafe fn with_buffer(buffer: Vec<u8>) -> Self {
         if buffer.len() < core::mem::size_of::<T>() {
             panic!("Insufficient buffer size!")
         }
 
-        Self{
+        Self {
             buffer,
-            _marker: Default::default()
+            _marker: Default::default(),
         }
     }
 
     /// Creates the value of type `T` represented by the all-zero byte-pattern.
     pub fn zeroed() -> Self {
-        Self{
+        Self {
             buffer: vec![0_u8; core::mem::size_of::<T>()],
-            _marker: Default::default()
+            _marker: Default::default(),
         }
     }
 
@@ -178,12 +178,16 @@ impl<T: Sized + Clone + Copy> StructBuffer<T> {
 
     pub fn raw(&self) -> &T {
         #[allow(clippy::cast_ptr_alignment)]
-        unsafe { &*(self.buffer.as_ptr() as *const T) }
+        unsafe {
+            &*(self.buffer.as_ptr() as *const T)
+        }
     }
 
     pub fn raw_mut(&mut self) -> &mut T {
         #[allow(clippy::cast_ptr_alignment)]
-        unsafe { &mut *(self.buffer.as_mut_ptr() as *mut T) }
+        unsafe {
+            &mut *(self.buffer.as_mut_ptr() as *mut T)
+        }
     }
 
     pub fn buffer(&self) -> &[u8] {
@@ -211,7 +215,7 @@ impl<T: Sized + Clone + Copy> StructBuffer<T> {
     }
 }
 
-impl<T:Sized + Clone + Copy> core::ops::Deref for StructBuffer<T> {
+impl<T: Sized + Clone + Copy> core::ops::Deref for StructBuffer<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -219,19 +223,19 @@ impl<T:Sized + Clone + Copy> core::ops::Deref for StructBuffer<T> {
     }
 }
 
-impl<T:Sized + Clone + Copy> core::ops::DerefMut for StructBuffer<T> {
+impl<T: Sized + Clone + Copy> core::ops::DerefMut for StructBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.raw_mut()
     }
 }
 
-impl<T:Sized + Clone + Copy> AsByteSlice for StructBuffer<T> {
+impl<T: Sized + Clone + Copy> AsByteSlice for StructBuffer<T> {
     unsafe fn as_byte_slice(&self) -> &[u8] {
         self.buffer.as_byte_slice()
     }
 }
 
-impl<T:Sized + Clone + Copy> AsByteSliceMut for StructBuffer<T> {
+impl<T: Sized + Clone + Copy> AsByteSliceMut for StructBuffer<T> {
     unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
         self.buffer.as_byte_slice_mut()
     }
@@ -253,7 +257,7 @@ mod tests {
     #[derive(Copy, Clone)]
     struct S {
         byte: u8,
-        word: u16
+        word: u16,
     }
 
     #[test]
@@ -297,13 +301,13 @@ mod tests {
         unsafe {
             // packed fileds
             assert_eq!(0, buffer.byte);
-            assert_eq!(0, buffer.word )
+            assert_eq!(0, buffer.word)
         }
 
         buffer.byte = 12;
         unsafe {
             assert_eq!(12, buffer.byte);
-            assert_eq!(0, buffer.word )
+            assert_eq!(0, buffer.word)
         }
 
         let bytes = unsafe { buffer.as_byte_slice() };
@@ -312,13 +316,13 @@ mod tests {
         let s = buffer.copy();
         unsafe {
             assert_eq!(12, s.byte);
-            assert_eq!(0, s.word )
+            assert_eq!(0, s.word)
         }
 
         let s = buffer.take();
         unsafe {
             assert_eq!(12, s.byte);
-            assert_eq!(0, s.word )
+            assert_eq!(0, s.word)
         }
     }
 
