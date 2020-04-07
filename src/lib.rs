@@ -51,73 +51,150 @@ impl NullSafePtr<u8> for str {
     }
 }
 
-pub unsafe trait AsByteSlice {
+pub trait AsByteSlice {
     /// # Safety
     /// The method is unsafe because any padding bytes in the struct may be uninitialized memory (giving undefined behavior).
     /// Also, there are not any Endianness assumtions. The caller should care about it.
     unsafe fn as_byte_slice(&self) -> &[u8];
 }
 
-pub unsafe trait AsByteSliceMut {
+pub trait AsByteSliceMut {
     /// # Safety
     /// The method is unsafe because any padding bytes in the struct may be uninitialized memory (giving undefined behavior).
     /// Also, there are not any Endianness assumtions. The caller should care about it.
     unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8];
 }
 
-#[macro_export]
-macro_rules! struct_as_byte_slice {
+macro_rules! impl_int {
     ($name:ty) => {
-        unsafe impl AsByteSlice for $name {
+        impl AsByteSlice for $name {
             unsafe fn as_byte_slice(&self) -> &[u8] {
-                core::slice::from_raw_parts((self as *const $name) as *const u8, core::mem::size_of::<$name>())
+                let byte_size = core::mem::size_of::<$name>();
+                core::slice::from_raw_parts(self as *const _ as *const u8, byte_size)
             }
         }
-    };
-}
 
-#[macro_export]
-macro_rules! struct_as_byte_slice_mut {
-    ($name:ty) => {
-        unsafe impl AsByteSliceMut for $name {
-            unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
-                core::slice::from_raw_parts_mut((self as *mut $name) as *mut u8, core::mem::size_of::<$name>())
-            }
-        }
-    };
-}
-
-macro_rules! struct_as_byte_for_prim_int {
-    ($name:ty) => {
-        $crate::struct_as_byte_slice!($name);
-        $crate::struct_as_byte_slice_mut!($name);
-
-        unsafe impl AsByteSlice for &[$name] {
+        impl AsByteSlice for [$name] {
             unsafe fn as_byte_slice(&self) -> &[u8] {
                 let byte_size = self.len() * core::mem::size_of::<$name>();
                 core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
             }
         }
         
-        unsafe impl AsByteSlice for Vec<$name> {
+        impl AsByteSlice for Vec<$name> {
             unsafe fn as_byte_slice(&self) -> &[u8] {
                 let byte_size = self.len() * core::mem::size_of::<$name>();
                 core::slice::from_raw_parts(self.as_ptr() as *const u8, byte_size)
             }
         }
+
+        impl AsByteSliceMut for $name {
+            unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+                let byte_size = core::mem::size_of::<$name>();
+                core::slice::from_raw_parts_mut(self as *mut _ as *mut u8, byte_size)
+            }
+        }
+
+        impl AsByteSliceMut for [$name] {
+            unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+                let byte_size = self.len() * core::mem::size_of::<$name>();
+                core::slice::from_raw_parts_mut(self.as_mut_ptr() as *mut u8, byte_size)
+            }
+        }
+        
+        impl AsByteSliceMut for Vec<$name> {
+            unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+                let byte_size = self.len() * core::mem::size_of::<$name>();
+                core::slice::from_raw_parts_mut(self.as_mut_ptr() as *mut u8, byte_size)
+            }
+        }
     };
 }
 
-struct_as_byte_for_prim_int!(u8);
-struct_as_byte_for_prim_int!(u16);
-struct_as_byte_for_prim_int!(u32);
-struct_as_byte_for_prim_int!(u64);
-struct_as_byte_for_prim_int!(i8);
-struct_as_byte_for_prim_int!(i16);
-struct_as_byte_for_prim_int!(i32);
-struct_as_byte_for_prim_int!(i64);
+impl_int!(u8);
+impl_int!(u16);
+impl_int!(u32);
+impl_int!(u64);
+impl_int!(i8);
+impl_int!(i16);
+impl_int!(i32);
+impl_int!(i64);
 
-#[allow(dead_code)]
+pub struct StructBuffer<T: Sized> {
+    buffer: Vec<u8>,
+    _marker: core::marker::PhantomData<T>
+}
+
+impl<T:Sized> StructBuffer<T> {
+    /// Creates a buffer capable to hold the value of type `T`.
+    /// 
+    /// # Safety
+    /// The buffer is uninitialized! 
+    pub unsafe fn new() -> Self {
+        Self{
+            buffer: alloc_buffer(core::mem::size_of::<T>()),
+            _marker: Default::default()
+        }
+    }
+
+    /// Creates a buffer capable to hold the value of type `T` plus `ext_size` bytes.
+    /// 
+    /// # Safety
+    /// The buffer is uninitialized! 
+    pub unsafe fn with_buffer(ext_size: usize) -> Self {
+        Self{
+            buffer: alloc_buffer(core::mem::size_of::<T>() + ext_size),
+            _marker: Default::default()
+        }
+    }
+
+    /// Creates the value of type `T` represented by the all-zero byte-pattern.
+    pub fn zeroed() -> Self {
+        Self{
+            buffer: vec![0_u8; core::mem::size_of::<T>()],
+            _marker: Default::default()
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    pub fn raw(&self) -> &T {
+        unsafe { &*(self.buffer.as_ptr() as *const T) }
+    }
+
+    pub fn raw_mut(&mut self) -> &mut T {
+        unsafe { &mut *(self.buffer.as_mut_ptr() as *mut T) }
+    }
+}
+
+impl<T:Sized> core::ops::Deref for StructBuffer<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.raw()
+    }
+}
+
+impl<T:Sized> core::ops::DerefMut for StructBuffer<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.raw_mut()
+    }
+}
+
+impl<T:Sized> AsByteSlice for StructBuffer<T> {
+    unsafe fn as_byte_slice(&self) -> &[u8] {
+        self.buffer.as_byte_slice()
+    }
+}
+
+impl<T:Sized> AsByteSliceMut for StructBuffer<T> {
+    unsafe fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+        self.buffer.as_byte_slice_mut()
+    }
+}
+
 /// # Safety
 /// The allocated buffer is uninitialized and should be entirely rewritten before read.
 pub unsafe fn alloc_buffer(size: usize) -> Vec<u8> {
@@ -171,11 +248,22 @@ mod tests {
             byte: u8,
             word: u16
         };
-        struct_as_byte_slice!(S);
+        let mut buffer = StructBuffer::<S>::zeroed();
+        assert_eq!(3, buffer.len());
+        
+        unsafe {
+            // packed fileds
+            assert_eq!(0, buffer.byte);
+            assert_eq!(0, buffer.word )
+        }
 
-        let s = S{byte:1, word: 3};
+        buffer.byte = 12;
+        unsafe {
+            assert_eq!(12, buffer.byte);
+            assert_eq!(0, buffer.word )
+        }
 
-        let bytes = unsafe { s.as_byte_slice() };
+        let bytes = unsafe { buffer.as_byte_slice() };
         assert_eq!(3, bytes.len());
     }
 
