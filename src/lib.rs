@@ -5,14 +5,16 @@
 #[macro_use]
 extern crate alloc as std;
 
-pub use std::collections::BTreeMap;
-pub use std::string::String;
-pub use std::vec::Vec;
-pub use std::boxed::Box;
-pub use std::format;
-pub use std::string::ToString;
-
-pub use core::option::Option;
+pub mod xstd {
+    pub use std::collections::BTreeMap;
+    pub use std::string::String;
+    pub use std::vec::Vec;
+    pub use std::boxed::Box;
+    pub use std::format;
+    pub use std::vec;
+    pub use std::string::ToString;
+    pub use core::option::Option;
+}
 
 pub trait NullSafePtr<T: Sized> {
     fn safe_ptr(&self) -> *const T;
