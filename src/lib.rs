@@ -167,6 +167,24 @@ impl<T: Sized + Clone + Copy> StructBuffer<T> {
         }
     }
 
+    /// Creates a StructBuffer for the type `T` using supplied `T` value.
+    ///
+    /// # Safety
+    /// The buffer size should be >= mem::size_of::<T>() !
+    pub fn with_value(value: &T) -> Self {
+        let buffer = unsafe {
+            let mut buffer = alloc_buffer(core::mem::size_of::<T>());
+            let value_bytes = core::slice::from_raw_parts(value as *const _ as *const u8, core::mem::size_of::<T>());
+            buffer.as_byte_slice_mut().copy_from_slice(value_bytes);
+            buffer
+        };
+
+        Self {
+            buffer,
+            _marker: Default::default(),
+        }
+    }
+
     /// Creates the value of type `T` represented by the all-zero byte-pattern.
     pub fn zeroed() -> Self {
         Self {
@@ -361,5 +379,17 @@ mod tests {
         assert!(!buffer.has_ext_buffer());
         assert!(buffer.ext_buffer().len() == 0);
         assert!(buffer.ext_buffer_mut().len() == 0);
+    }
+
+    #[test]
+    fn with_value() {
+        let mut buffer = StructBuffer::<S>::with_value(&S{ byte: 78, word: 0x1326});
+        assert_eq!(3, buffer.len());
+        assert!(!buffer.has_ext_buffer());
+        assert!(buffer.ext_buffer().len() == 0);
+        assert!(buffer.ext_buffer_mut().len() == 0);
+
+        assert!( buffer.byte == 78 );
+        assert!( buffer.word == 0x1326 );
     }
 }
