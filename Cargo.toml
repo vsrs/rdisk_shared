@@ -3,6 +3,9 @@ name = "rdisk_shared"
 version = "0.1.0"
 authors = ["Vitalij Shitts <vit@conrlab.com>"]
 edition = "2018"
+readme = "README.md"
+description = "rdisk shared traits and utility functions"
+license = "MIT/Apache-2.0"
 
 [dependencies]
 
