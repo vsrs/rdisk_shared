@@ -123,6 +123,7 @@ impl_int!(i16);
 impl_int!(i32);
 impl_int!(i64);
 
+#[derive(Clone)]
 pub struct StructBuffer<T: Sized> {
     buffer: Vec<u8>,
     _marker: core::marker::PhantomData<T>,
