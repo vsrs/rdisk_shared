@@ -16,6 +16,8 @@ pub mod xstd {
     pub use core::option::Option;
 }
 
+use xstd::*;
+
 pub trait NullSafePtr<T: Sized> {
     fn safe_ptr(&self) -> *const T;
 }
